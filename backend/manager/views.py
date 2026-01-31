@@ -138,6 +138,14 @@ class PartieViewSet(viewsets.ModelViewSet):
         return self.pay(request, pk)
 
     @action(detail=False, methods=['get'])
+    def search_client(self, request):
+        """Search clients by name for autocomplete."""
+        q = request.query_params.get('q', '')
+        clients = Client.objects.filter(nom__icontains=q)[:10]
+        serializer = ClientSerializer(clients, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
     def get_stats(self, request):
         """Get dashboard statistics."""
         total_argent = Partie.objects.aggregate(Sum('prix_total'))['prix_total__sum'] or 0

@@ -54,7 +54,7 @@ function Dashboard() {
     }
   };
 
-  // Search clients with debounce
+  // Search clients with debounce using the new search_client endpoint
   const searchClients = async (query) => {
     if (!query || query.length < 1) {
       setSearchResults([]);
@@ -63,7 +63,7 @@ function Dashboard() {
     
     setSearchLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/clients/?search=${encodeURIComponent(query)}`);
+      const res = await axios.get(`${API_URL}/parties/search_client/?q=${encodeURIComponent(query)}`);
       setSearchResults(res.data.slice(0, 8)); // Limit to 8 results
       setShowSearchDropdown(true);
     } catch (error) {
@@ -212,11 +212,12 @@ function Dashboard() {
                   <td className="price">{formatCurrency(g.prix)}</td>
                   <td className="next-player">{g.next_player || '-'}</td>
                   <td>
-                    {g.est_paye ? (
-                      <span className="status-paid">Payé</span>
-                    ) : (
-                      <span className="status-unpaid">NON PAYÉ</span>
-                    )}
+                    <button 
+                      onClick={() => markPaid(g.id)}
+                      className={`px-4 py-1 rounded font-bold ${g.est_paye ? 'bg-green-500' : 'bg-red-500'} text-white hover:opacity-80 transition-opacity`}
+                    >
+                      {g.est_paye ? "OUI" : "NON"}
+                    </button>
                   </td>
                   <td>
                     {!g.est_paye && (
