@@ -2,6 +2,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.db.models import Sum, Count, Avg
+from django.db.models.functions import ExtractHour
 from django.utils import timezone
 from .models import Table, Client, Partie
 from .serializers import TableSerializer, ClientSerializer, PartieSerializer
@@ -43,14 +45,22 @@ class ClientViewSet(viewsets.ModelViewSet):
 
 class PartieViewSet(viewsets.ModelViewSet):
     """ViewSet for managing game sessions."""
-    queryset = Partie.objects.all()
+    queryset = Partie.objects.all().order_by('-date_debut')
     serializer_class = PartieSerializer
 
     def get_queryset(self):
-        queryset = Partie.objects.all()
+        queryset = super().get_queryset()
+        nom = self.request.query_params.get('nom')
+        paye = self.request.query_params.get('paye')
         en_cours = self.request.query_params.get('en_cours')
+
+        if nom:
+            queryset = queryset.filter(client__nom__icontains=nom)
+        if paye:
+            queryset = queryset.filter(est_paye=(paye.lower() == 'true'))
         if en_cours is not None:
             queryset = queryset.filter(est_en_cours=en_cours.lower() == 'true')
+        
         return queryset
 
     def perform_create(self, serializer):
@@ -122,16 +132,65 @@ class PartieViewSet(viewsets.ModelViewSet):
         partie.save()
         return Response(PartieSerializer(partie).data)
 
+    @action(detail=True, methods=['post'])
+    def mark_as_paid(self, request, pk=None):
+        """Mark a game session as paid (alias for pay)."""
+        return self.pay(request, pk)
+
+    @action(detail=False, methods=['get'])
+    def get_stats(self, request):
+        """Get dashboard statistics."""
+        total_argent = Partie.objects.aggregate(Sum('prix_total'))['prix_total__sum'] or 0
+        total_parties = Partie.objects.count()
+        
+        # Calculate peak hour (most profitable)
+        pic = Partie.objects.annotate(heure=ExtractHour('date_debut'))\
+            .values('heure').annotate(total=Sum('prix_total')).order_by('-total').first()
+        
+        # Today's stats
+        today = timezone.now().date()
+        today_parties = Partie.objects.filter(date_debut__date=today)
+        today_revenue = sum(partie.prix_total for partie in today_parties)
+        
+        # Active parties
+        active_parties = Partie.objects.filter(est_en_cours=True)
+        
+        # Available tables
+        available_tables = Table.objects.filter(est_disponible=True).count()
+        total_tables = Table.objects.count()
+        
+        return Response({
+            "total_money": float(total_argent) if total_argent else 0,
+            "total_games": total_parties,
+            "peak_hour": pic['heure'] if pic else 0,
+            "unpaid_count": Partie.objects.filter(est_paye=False).count(),
+            "today_revenue": float(today_revenue),
+            "today_games": today_parties.count(),
+            "active_parties_count": active_parties.count(),
+            "available_tables": f"{available_tables}/{total_tables}",
+        })
+
 
 class DashboardStatsView(APIView):
     """API endpoint for dashboard statistics."""
     def get(self, request):
         """Get dashboard statistics."""
+        from django.db.models import Sum
+        from django.db.models.functions import ExtractHour
+        
         today = timezone.now().date()
         
         # Today's parties
         today_parties = Partie.objects.filter(date_debut__date=today)
         total_revenue_today = sum(partie.prix_total for partie in today_parties)
+        
+        # Total stats
+        total_argent = Partie.objects.aggregate(Sum('prix_total'))['prix_total__sum'] or 0
+        total_parties = Partie.objects.count()
+        
+        # Peak hour
+        pic = Partie.objects.annotate(heure=ExtractHour('date_debut'))\
+            .values('heure').annotate(total=Sum('prix_total')).order_by('-total').first()
         
         # Active parties
         active_parties = Partie.objects.filter(est_en_cours=True)
@@ -144,9 +203,13 @@ class DashboardStatsView(APIView):
         total_clients = Client.objects.count()
         
         return Response({
-            'today_revenue': total_revenue_today,
+            'today_revenue': float(total_revenue_today),
             'today_parties_count': today_parties.count(),
+            'total_revenue': float(total_argent),
+            'total_games': total_parties,
+            'peak_hour': pic['heure'] if pic else 0,
             'active_parties_count': active_parties.count(),
+            'unpaid_count': Partie.objects.filter(est_paye=False).count(),
             'available_tables': f"{available_tables}/{total_tables}",
             'total_clients': total_clients,
             'tables_status': TableSerializer(Table.objects.all(), many=True).data,
