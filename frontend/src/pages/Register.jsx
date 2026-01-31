@@ -1,26 +1,21 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { authService } from '../services/auth';
+import './Auth.css';
 
-const Register = () => {
+export default function Register() {
   const [formData, setFormData] = useState({
     username: '',
     email: '',
     password: '',
-    password_confirm: '',
-    first_name: '',
-    last_name: '',
+    password_confirm: ''
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { register } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
@@ -28,61 +23,42 @@ const Register = () => {
     setError('');
 
     if (formData.password !== formData.password_confirm) {
-      setError('Passwords do not match');
+      setError('Les mots de passe ne correspondent pas');
       return;
     }
 
     setLoading(true);
 
-    const { password_confirm: _, ...userData } = formData;
-    const result = await register(userData);
-
-    if (result.success) {
-      navigate('/login');
-    } else {
-      setError(result.error);
+    try {
+      await authService.register({
+        username: formData.username,
+        email: formData.email,
+        password: formData.password
+      });
+      navigate('/dashboard');
+    } catch (err) {
+      const errors = err.response?.data;
+      if (errors) {
+        const errorMessages = Object.entries(errors)
+          .map(([key, value]) => `${key}: ${value}`)
+          .join(', ');
+        setError(errorMessages);
+      } else {
+        setError('Erreur d\'inscription');
+      }
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <h2>Create Account</h2>
-        <p className="auth-subtitle">Join us today</p>
-
-        {error && <div className="alert alert-error">{error}</div>}
-
+        <h2>Inscription</h2>
+        {error && <div className="error-message">{error}</div>}
         <form onSubmit={handleSubmit}>
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="first_name">First Name</label>
-              <input
-                type="text"
-                id="first_name"
-                name="first_name"
-                value={formData.first_name}
-                onChange={handleChange}
-                placeholder="John"
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="last_name">Last Name</label>
-              <input
-                type="text"
-                id="last_name"
-                name="last_name"
-                value={formData.last_name}
-                onChange={handleChange}
-                placeholder="Doe"
-              />
-            </div>
-          </div>
-
           <div className="form-group">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="username">Nom d'utilisateur</label>
             <input
               type="text"
               id="username"
@@ -90,10 +66,8 @@ const Register = () => {
               value={formData.username}
               onChange={handleChange}
               required
-              placeholder="johndoe"
             />
           </div>
-
           <div className="form-group">
             <label htmlFor="email">Email</label>
             <input
@@ -103,12 +77,10 @@ const Register = () => {
               value={formData.email}
               onChange={handleChange}
               required
-              placeholder="john@example.com"
             />
           </div>
-
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">Mot de passe</label>
             <input
               type="password"
               id="password"
@@ -116,13 +88,11 @@ const Register = () => {
               value={formData.password}
               onChange={handleChange}
               required
-              minLength="8"
-              placeholder="At least 8 characters"
+              minLength={8}
             />
           </div>
-
           <div className="form-group">
-            <label htmlFor="password_confirm">Confirm Password</label>
+            <label htmlFor="password_confirm">Confirmer le mot de passe</label>
             <input
               type="password"
               id="password_confirm"
@@ -130,21 +100,16 @@ const Register = () => {
               value={formData.password_confirm}
               onChange={handleChange}
               required
-              placeholder="Confirm your password"
             />
           </div>
-
-          <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? 'Creating account...' : 'Create Account'}
+          <button type="submit" disabled={loading}>
+            {loading ? 'Inscription...' : "S'inscrire"}
           </button>
         </form>
-
-        <p className="auth-footer">
-          Already have an account? <Link to="/login">Sign in</Link>
+        <p className="auth-link">
+          Déjà un compte ? <Link to="/login">Se connecter</Link>
         </p>
       </div>
     </div>
   );
-};
-
-export default Register;
+}
