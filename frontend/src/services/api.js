@@ -57,4 +57,12 @@ api.interceptors.response.use(
   }
 );
 
+// Auth API methods
+export const authAPI = {
+  login: (credentials) => api.post('/accounts/login/', credentials),
+  register: (userData) => api.post('/accounts/register/', userData),
+  logout: (data) => api.post('/accounts/logout/', data),
+  profile: () => api.get('/accounts/profile/'),
+};
+
 export default api;

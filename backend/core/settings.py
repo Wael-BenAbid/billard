@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     # Third-party apps
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',  # Add this line for logout/blacklist
     'corsheaders',
     # Local apps
     'accounts',
@@ -123,6 +124,7 @@ REST_FRAMEWORK = {
         'rest_framework.parsers.JSONParser',
     ],
     'EXCEPTION_HANDLER': 'core.exceptions.custom_exception_handler',
+    'DEFAULT_TOKEN_MODEL': 'rest_framework_simplejwt.models.Token',  # Add this line
 }
 
 # Simple JWT Configuration

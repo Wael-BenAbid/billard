@@ -7,6 +7,7 @@ from .views import (
     CustomTokenObtainPairView,
     UserProfileView,
     UserListView,
+    LogoutView,
 )
 
 app_name = 'accounts'
@@ -19,6 +20,7 @@ urlpatterns = [
     path('register/', UserRegistrationView.as_view(), name='register'),
     path('login/', CustomTokenObtainPairView.as_view(), name='token-obtain-pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
+    path('logout/', LogoutView.as_view(), name='logout'),
     
     # User endpoints
     path('profile/', UserProfileView.as_view(), name='profile'),

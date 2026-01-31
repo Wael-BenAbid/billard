@@ -65,3 +65,19 @@ class UserListView(ListAPIView):
     
     def get_queryset(self):
         return super().get_queryset().exclude(id=self.request.user.id)
+
+
+class LogoutView(APIView):
+    """API view for user logout (blacklist refresh token)."""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            refresh_token = request.data.get('refresh')
+            if refresh_token:
+                from rest_framework_simplejwt.tokens import RefreshToken
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            return Response({'message': 'Logged out successfully'})
+        except Exception as e:
+            return Response({'message': 'Logged out successfully'})

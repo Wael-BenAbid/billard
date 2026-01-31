@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
 import { Search, TrendingUp, AlertCircle, Play, CheckCircle, DollarSign, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 
-const API_URL = '/api/manager';
+const API_URL = '/manager';
 
 function Dashboard() {
   const { user } = useAuth();
@@ -42,10 +42,10 @@ function Dashboard() {
       if (search) params.append('nom', search);
       if (filterUnpaid) params.append('paye', 'false');
       
-      const gamesRes = await axios.get(`${API_URL}/parties/?${params}`);
+      const gamesRes = await api.get(`${API_URL}/parties/?${params}`);
       setGames(gamesRes.data);
       
-      const statsRes = await axios.get(`${API_URL}/parties/get_stats/`);
+      const statsRes = await api.get(`${API_URL}/parties/get_stats/`);
       setStats(statsRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -63,7 +63,7 @@ function Dashboard() {
     
     setSearchLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/parties/search_client/?q=${encodeURIComponent(query)}`);
+      const res = await api.get(`${API_URL}/parties/search_client/?q=${encodeURIComponent(query)}`);
       setSearchResults(res.data.slice(0, 8)); // Limit to 8 results
       setShowSearchDropdown(true);
     } catch (error) {
@@ -102,7 +102,7 @@ function Dashboard() {
 
   const markPaid = async (id) => {
     try {
-      await axios.post(`${API_URL}/parties/${id}/pay/`);
+      await api.post(`${API_URL}/parties/${id}/pay/`);
       refreshData();
     } catch (error) {
       console.error('Error marking as paid:', error);
@@ -111,7 +111,7 @@ function Dashboard() {
 
   const setNextPlayer = async (id, nextPlayer) => {
     try {
-      await axios.post(`${API_URL}/parties/${id}/set_next_player/`, { next_player: nextPlayer });
+      await api.post(`${API_URL}/parties/${id}/set_next_player/`, { next_player: nextPlayer });
     } catch (error) {
       console.error('Error setting next player:', error);
     }
@@ -270,13 +270,13 @@ function TableCard({ name, next, setNext, tableNumero }) {
     setLoading(true);
     try {
       // Create client if doesn't exist
-      const clientRes = await axios.post(`${API_URL}/clients/`, {
+      const clientRes = await api.post(`${API_URL}/clients/`, {
         nom: clientName,
         telephone: '',
       });
       
       // Start game
-      await axios.post(`${API_URL}/parties/`, {
+      await api.post(`${API_URL}/parties/`, {
         table: tableNumero,
         client: clientRes.data.id,
         next_player: next,
