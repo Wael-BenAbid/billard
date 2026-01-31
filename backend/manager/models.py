@@ -44,6 +44,8 @@ class Partie(models.Model):
     date_fin = models.DateTimeField(blank=True, null=True, verbose_name="Date de fin")
     est_en_cours = models.BooleanField(default=True, verbose_name="En cours")
     prix_total = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Prix total")
+    next_player = models.CharField(max_length=100, blank=True, null=True, verbose_name="Prochain joueur")
+    est_paye = models.BooleanField(default=False, verbose_name="Est payé")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -54,6 +56,12 @@ class Partie(models.Model):
 
     def __str__(self):
         return f"Partie {self.id} - {self.client.nom} - Table {self.table.numero}"
+
+    @property
+    def duree_minutes(self):
+        if self.date_fin:
+            return (self.date_fin - self.date_debut).total_seconds() / 60
+        return 0
 
     def start_partie(self):
         """Start the game session."""

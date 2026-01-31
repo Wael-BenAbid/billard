@@ -105,6 +105,23 @@ class PartieViewSet(viewsets.ModelViewSet):
         partie.stop_partie()
         return Response(PartieSerializer(partie).data)
 
+    @action(detail=True, methods=['post'])
+    def pay(self, request, pk=None):
+        """Mark a game session as paid."""
+        partie = self.get_object()
+        partie.est_paye = True
+        partie.save()
+        return Response(PartieSerializer(partie).data)
+
+    @action(detail=True, methods=['post'])
+    def set_next_player(self, request, pk=None):
+        """Set the next player for a game session."""
+        partie = self.get_object()
+        next_player = request.data.get('next_player', '')
+        partie.next_player = next_player
+        partie.save()
+        return Response(PartieSerializer(partie).data)
+
 
 class DashboardStatsView(APIView):
     """API endpoint for dashboard statistics."""

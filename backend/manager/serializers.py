@@ -39,14 +39,18 @@ class PartieSerializer(serializers.ModelSerializer):
         write_only=True
     )
     duree = serializers.SerializerMethodField()
+    table_numero = serializers.SerializerMethodField()
+    loser_name = serializers.SerializerMethodField()
+    prix = serializers.SerializerMethodField()
 
     class Meta:
         model = Partie
         fields = [
-            'id', 'table', 'table_info', 'table_id',
-            'client', 'client_info', 'client_id',
-            'date_debut', 'date_fin', 'est_en_cours', 'prix_total',
-            'duree', 'created_at', 'updated_at'
+            'id', 'table', 'table_info', 'table_id', 'table_numero',
+            'client', 'client_info', 'client_id', 'loser_name',
+            'date_debut', 'date_fin', 'est_en_cours', 'prix_total', 'prix',
+            'next_player', 'est_paye', 'duree',
+            'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'date_debut', 'date_fin', 'prix_total', 'created_at', 'updated_at']
 
@@ -64,3 +68,15 @@ class PartieSerializer(serializers.ModelSerializer):
         hours = int(total_seconds // 3600)
         minutes = int((total_seconds % 3600) // 60)
         return f"{hours}h {minutes}min"
+
+    def get_table_numero(self, obj):
+        """Get table numero."""
+        return obj.table.numero
+
+    def get_loser_name(self, obj):
+        """Get client name (loser)."""
+        return obj.client.nom
+
+    def get_prix(self, obj):
+        """Get price as number."""
+        return float(obj.prix_total) if obj.prix_total else 0
