@@ -1,0 +1,123 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { UserPlus, Check, X, Search } from 'lucide-react';
+
+const API = "http://127.0.0.1:8000/api/";
+
+function App() {
+  const [history, setHistory] = useState([]);
+  const [clientInput, setClientInput] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+
+  // Fonction pour chercher les clients (Autocomplete)
+  const handleClientSearch = async (val) => {
+    setClientInput(val);
+    if (val.length > 0) {
+      const res = await axios.get(`${API}clients/search/?q=${val}`);
+      setSuggestions(res.data);
+    } else {
+      setSuggestions([]);
+    }
+  };
+
+  const addClient = async () => {
+    const nom = prompt("Nom du nouveau client :");
+    if (nom) await axios.post(`${API}clients/`, { nom });
+  };
+
+  const togglePaye = async (id) => {
+    await axios.post(`${API}games/${id}/toggle_payment/`);
+    fetchHistory();
+  };
+
+  return (
+    <div className="p-6 bg-gray-900 min-h-screen text-white">
+      <h1 className="text-2xl font-bold mb-6 text-yellow-500 text-center uppercase tracking-widest">
+        Contrôle Billard Pro
+      </h1>
+
+      {/* ZONE DE SAISIE LOSER AVEC AUTOCOMPLETE */}
+      <div className="max-w-md mx-auto mb-10 bg-gray-800 p-4 rounded-xl relative">
+        <label className="block text-xs font-bold text-gray-400 mb-2">IDENTIFIER LE LOSER</label>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <input 
+              type="text" 
+              value={clientInput}
+              onChange={(e) => handleClientSearch(e.target.value)}
+              placeholder="Tapez le nom (ex: M...)"
+              className="w-full bg-gray-700 p-2 rounded outline-none border border-gray-600 focus:border-yellow-500"
+            />
+            {/* Menu suggestions */}
+            {suggestions.length > 0 && (
+              <div className="absolute top-11 w-full bg-white text-black rounded shadow-xl z-50">
+                {suggestions.map(s => (
+                  <div 
+                    key={s.id} 
+                    onClick={() => {setClientInput(s.nom); setSuggestions([]);}}
+                    className="p-2 hover:bg-yellow-100 cursor-pointer border-b"
+                  >
+                    {s.nom}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <button onClick={addClient} className="bg-yellow-600 p-2 rounded hover:bg-yellow-500">
+            <UserPlus size={20} />
+          </button>
+        </div>
+      </div>
+
+      {/* TABLEAU STYLE EXCEL */}
+      <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+        <table className="w-full text-sm text-left">
+          <thead className="bg-gray-700 text-yellow-500 uppercase">
+            <tr>
+              <th className="p-3 border-r border-gray-600 text-center">Date / Début</th>
+              <th className="p-3 border-r border-gray-600 text-center">Fin</th>
+              <th className="p-3 border-r border-gray-600 text-center">Temps</th>
+              <th className="p-3 border-r border-gray-600 text-center">Prix (DT)</th>
+              <th className="p-3 border-r border-gray-600 text-center">Loser (Payeur)</th>
+              <th className="p-3 text-center">Payé ?</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-700">
+            {history.map((game) => (
+              <tr key={game.id} className="hover:bg-gray-750 transition">
+                <td className="p-3 border-r border-gray-700 text-center font-mono">
+                  {new Date(game.debut).toLocaleDateString()} <br/>
+                  <span className="text-blue-400">{new Date(game.debut).toLocaleTimeString()}</span>
+                </td>
+                <td className="p-3 border-r border-gray-700 text-center font-mono">
+                  {game.fin ? new Date(game.fin).toLocaleTimeString() : "---"}
+                </td>
+                <td className="p-3 border-r border-gray-700 text-center font-bold text-gray-300">
+                  {game.temps_de_jeu || "En cours"}
+                </td>
+                <td className="p-3 border-r border-gray-700 text-center font-bold text-green-400">
+                  {game.prix} 
+                </td>
+                <td className="p-3 border-r border-gray-700 text-center font-bold text-yellow-500 uppercase">
+                  {game.loser_nom || "???"}
+                </td>
+                <td className="p-3 text-center">
+                  <button 
+                    onClick={() => togglePaye(game.id)}
+                    className={`px-4 py-1 rounded-full font-black text-xs transition ${
+                      game.est_paye 
+                      ? 'bg-green-600 text-white shadow-[0_0_10px_rgba(22,163,74,0.5)]' 
+                      : 'bg-red-600 text-white animate-pulse'
+                    }`}
+                  >
+                    {game.est_paye ? "OUI" : "NON"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

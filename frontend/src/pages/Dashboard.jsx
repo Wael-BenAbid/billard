@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Search, TrendingUp, AlertCircle, Play, CheckCircle, DollarSign } from 'lucide-react';
+import { Search, TrendingUp, AlertCircle, Play, CheckCircle, DollarSign, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const API_URL = '/api/manager';
@@ -10,14 +10,30 @@ function Dashboard() {
   const [games, setGames] = useState([]);
   const [stats, setStats] = useState({});
   const [search, setSearch] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [filterUnpaid, setFilterUnpaid] = useState(false);
   const [nextPlayerA, setNextPlayerA] = useState('');
   const [nextPlayerB, setNextPlayerB] = useState('');
   const [loading, setLoading] = useState(true);
+  const searchTimeoutRef = useRef(null);
+  const searchRef = useRef(null);
 
   useEffect(() => {
     refreshData();
   }, [search, filterUnpaid]);
+
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setShowSearchDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const refreshData = async () => {
     setLoading(true);
@@ -36,6 +52,52 @@ function Dashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Search clients with debounce
+  const searchClients = async (query) => {
+    if (!query || query.length < 1) {
+      setSearchResults([]);
+      return;
+    }
+    
+    setSearchLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/clients/?search=${encodeURIComponent(query)}`);
+      setSearchResults(res.data.slice(0, 8)); // Limit to 8 results
+      setShowSearchDropdown(true);
+    } catch (error) {
+      console.error('Error searching clients:', error);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setSearch(value);
+    
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    // Set new timeout for debounced search
+    searchTimeoutRef.current = setTimeout(() => {
+      searchClients(value);
+    }, 200);
+  };
+
+  const selectClient = (client) => {
+    setSearch(client.nom);
+    setShowSearchDropdown(false);
+    setSearchResults([]);
+  };
+
+  const clearSearch = () => {
+    setSearch('');
+    setSearchResults([]);
+    setShowSearchDropdown(false);
   };
 
   const markPaid = async (id) => {
