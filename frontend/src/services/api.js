@@ -65,4 +65,15 @@ export const authAPI = {
   profile: () => api.get('/accounts/profile/'),
 };
 
+// Game/Manager API methods
+export const gameAPI = {
+  getGames: () => api.get('/manager/parties/'),
+  getStats: () => api.get('/manager/parties/get_stats/'),
+  getClients: () => api.get('/manager/clients/'),
+  searchClients: (q) => api.get(`/manager/parties/search_client/?q=${q}`),
+  createClient: (data) => api.post('/manager/clients/', data),
+  createGame: (data) => api.post('/manager/parties/', data),
+  markPaid: (id) => api.post(`/manager/parties/${id}/pay/`),
+};
+
 export default api;
