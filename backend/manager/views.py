@@ -66,10 +66,10 @@ class PartieViewSet(viewsets.ModelViewSet):
         
         return queryset
 
-    def perform_create(self, serializer):
+    def create(self, request, *args, **kwargs):
         """Create a new game session and start it."""
-        table_id = self.request.data.get('table')
-        client_id = self.request.data.get('client')
+        table_id = request.data.get('table')
+        client_id = request.data.get('client')
         
         # Check if table is available
         try:
@@ -85,12 +85,31 @@ class PartieViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Create and start the partie
-        partie = serializer.save(date_debut=timezone.now(), est_en_cours=True)
+        # If no client provided, use None
+        client = None
+        if client_id:
+            try:
+                client = Client.objects.get(id=client_id)
+            except Client.DoesNotExist:
+                pass
+        
+        # Create the partie
+        partie = Partie.objects.create(
+            table=table,
+            client=client,
+            date_debut=timezone.now(),
+            est_en_cours=True
+        )
         
         # Mark table as unavailable
         table.est_disponible = False
         table.save()
+        
+        return Response(PartieSerializer(partie).data, status=status.HTTP_201_CREATED)
+    
+    def perform_create(self, serializer):
+        # Deprecated - using create() instead
+        pass
 
     @action(detail=True, methods=['post'])
     def start(self, request, pk=None):

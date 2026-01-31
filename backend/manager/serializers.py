@@ -27,7 +27,7 @@ class ClientSerializer(serializers.ModelSerializer):
 class PartieSerializer(serializers.ModelSerializer):
     """Serializer for Partie model."""
     table_info = TableSerializer(source='table', read_only=True)
-    client_info = ClientSerializer(source='client', read_only=True)
+    client_info = ClientSerializer(source='client', read_only=True, allow_null=True)
     table_id = serializers.PrimaryKeyRelatedField(
         queryset=Table.objects.all(),
         source='table',
@@ -36,7 +36,9 @@ class PartieSerializer(serializers.ModelSerializer):
     client_id = serializers.PrimaryKeyRelatedField(
         queryset=Client.objects.all(),
         source='client',
-        write_only=True
+        write_only=True,
+        required=False,
+        allow_null=True
     )
     duree = serializers.SerializerMethodField()
     table_numero = serializers.SerializerMethodField()
@@ -52,6 +54,10 @@ class PartieSerializer(serializers.ModelSerializer):
             'next_player', 'est_paye', 'duree',
             'created_at', 'updated_at'
         ]
+        extra_kwargs = {
+            'client': {'allow_null': True},
+            'table': {'allow_null': True}
+        }
         read_only_fields = ['id', 'date_debut', 'date_fin', 'prix_total', 'created_at', 'updated_at']
 
     def get_duree(self, obj):

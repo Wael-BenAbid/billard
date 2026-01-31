@@ -39,7 +39,7 @@ class Client(models.Model):
 class Partie(models.Model):
     """Model representing a billiard game session."""
     table = models.ForeignKey(Table, on_delete=models.CASCADE, verbose_name="Table")
-    client = models.ForeignKey(Client, on_delete=models.CASCADE, verbose_name="Client")
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, verbose_name="Client", null=True, blank=True)
     date_debut = models.DateTimeField(default=timezone.now, verbose_name="Date de début")
     date_fin = models.DateTimeField(blank=True, null=True, verbose_name="Date de fin")
     est_en_cours = models.BooleanField(default=True, verbose_name="En cours")

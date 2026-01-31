@@ -73,9 +73,17 @@ export const gameAPI = {
   getClients: () => api.get('/manager/clients/'),
   searchClients: (q) => api.get(`/manager/parties/search_client/?q=${q}`),
   createClient: (data) => api.post('/manager/clients/', data),
-  createGame: (data) => api.post('/manager/parties/', data),
-  stopGame: (id, data) => api.post(`/manager/parties/${id}/stop/`, data),
+  createGame: (tableId, nextPlayer = '') => api.post('/manager/parties/', { 
+    table: tableId,
+    next_player: nextPlayer, 
+    est_paye: false 
+  }),
+  stopGame: (id, loserName) => api.post(`/manager/parties/${id}/stop/`, { loser_name: loserName }),
   markPaid: (id) => api.post(`/manager/parties/${id}/pay/`),
+  
+  // Table management
+  createTable: (data) => api.post('/manager/tables/', data),
+  deleteTable: (id) => api.delete(`manager/tables/${id}/`),
 };
 
 export default api;
