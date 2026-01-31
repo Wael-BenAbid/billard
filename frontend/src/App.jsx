@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Play, TrendingUp, Users, AlertCircle, Search, CheckCircle, Clock, LayoutDashboard, History, LogOut, Filter, BarChart3 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { Play, Square, TrendingUp, Users, AlertCircle, Search, CheckCircle, Clock, LayoutDashboard, History, LogOut, Filter, BarChart3, DollarSign } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { gameAPI } from './services/api';
 
-// Données de test pour le graphique (à remplacer par ton API plus tard)
+// Données de test pour le graphique
 const dataStats = [
   { name: '18h', argent: 40 }, { name: '19h', argent: 120 },
   { name: '20h', argent: 300 }, { name: '21h', argent: 450 },
@@ -13,11 +13,47 @@ const dataStats = [
 function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [searchTerm, setSearchTerm] = useState("");
+  const [tables, setTables] = useState([]);
+  const [games, setGames] = useState([]);
+  const [stats, setStats] = useState({ today_revenue: 0, peak_hour: 0, unpaid_count: 0, total_games: 0 });
+
+  const fetchData = async () => {
+    try {
+      const [tablesRes, gamesRes, statsRes] = await Promise.all([
+        gameAPI.getTables(),
+        gameAPI.getGames(),
+        gameAPI.getStats()
+      ]);
+      setTables(tablesRes.data);
+      setGames(gamesRes.data);
+      setStats(statsRes.data);
+    } catch (err) {
+      console.error("Erreur fetchData", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // Calculate unpaid debts by client
+  const unpaidByClient = games.reduce((acc, game) => {
+    if (!game.est_paye && game.client_info?.nom) {
+      const name = game.client_info.nom;
+      acc[name] = (acc[name] || 0) + parseFloat(game.prix || 0);
+    }
+    return acc;
+  }, {});
+
+  // Filter games by search term
+  const filteredGames = games.filter(g => 
+    g.client_info?.nom?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="flex min-h-screen bg-[#020617] text-slate-200 font-sans">
       
-      {/* SIDEBAR - Fixée à gauche, ne cache plus rien */}
+      {/* SIDEBAR */}
       <aside className="w-72 bg-[#0f172a] border-r border-slate-800 flex flex-col sticky top-0 h-screen z-50 shadow-2xl">
         <div className="p-8">
           <div className="flex items-center gap-3 mb-10">
@@ -45,12 +81,22 @@ function App() {
         </div>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
+      {/* MAIN CONTENT */}
       <main className="flex-1 overflow-y-auto p-10 relative">
         {activePage === 'dashboard' ? (
-          <DashboardView />
+          <DashboardView 
+            stats={stats}
+            tables={tables}
+            unpaidByClient={unpaidByClient}
+            onGameStarted={fetchData}
+          />
         ) : (
-          <HistoryView searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
+          <HistoryView 
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            filteredGames={filteredGames}
+            dataStats={dataStats}
+          />
         )}
       </main>
     </div>
@@ -58,24 +104,7 @@ function App() {
 }
 
 // --- VUE DASHBOARD ---
-function DashboardView() {
-  const [stats, setStats] = useState({ today_revenue: 0, peak_hour: 0, unpaid_count: 0, total_games: 0 });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const res = await gameAPI.getStats();
-        setStats(res.data);
-      } catch (err) {
-        console.error("Erreur stats", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchStats();
-  }, []);
-
+function DashboardView({ stats, tables, unpaidByClient, onGameStarted }) {
   return (
     <div className="animate-in fade-in duration-500">
       <header className="mb-10">
@@ -83,45 +112,47 @@ function DashboardView() {
         <p className="text-slate-500">Contrôle des tables et revenus directs</p>
       </header>
 
+      {/* ADDITIONS EN ATTENTE */}
+      {Object.keys(unpaidByClient).length > 0 && (
+        <div className="bg-[#0f172a] p-6 rounded-2xl mb-6 border border-rose-500/30">
+          <h3 className="text-rose-400 font-bold mb-4 flex items-center gap-2">
+             <AlertCircle size={18}/> Additions en attente
+          </h3>
+          <div className="flex gap-4 overflow-x-auto pb-2">
+            {Object.entries(unpaidByClient).map(([name, total]) => (
+              <div key={name} className="bg-rose-500/10 p-4 rounded-xl border border-rose-500/20 min-w-[150px]">
+                <p className="text-xs font-bold text-rose-300 uppercase">{name}</p>
+                <p className="text-xl font-black text-rose-400">{total.toFixed(2)} DT</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* STATS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
         <StatBox title="Recette Jour" value={`${stats.today_revenue || 0} DT`} icon={<TrendingUp className="text-emerald-400"/>} color="emerald" />
         <StatBox title="Heure Pic" value={`${stats.peak_hour || 0}:00`} icon={<Clock className="text-indigo-400"/>} color="indigo" />
-        <StatBox title="Dettes Actuelles" value={`${stats.unpaid_count || 0} DT`} icon={<AlertCircle className="text-rose-400"/>} color="rose" />
+        <StatBox title="Non Payés" value={`${stats.unpaid_count || 0}`} icon={<AlertCircle className="text-rose-400"/>} color="rose" />
         <StatBox title="Parties Totales" value={stats.total_games || 0} icon={<Users className="text-amber-400"/>} color="amber" />
       </div>
 
+      {/* TABLES */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-        <TableCard name="BILLARD A" num="1" color="indigo" />
-        <TableCard name="BILLARD B" num="2" color="purple" />
+        {tables.map((table) => (
+          <TableCard 
+            key={table.id}
+            table={table}
+            onGameStarted={onGameStarted}
+          />
+        ))}
       </div>
     </div>
   );
 }
 
-// --- VUE HISTORIQUE AVEC COURBE ---
-function HistoryView({ searchTerm, setSearchTerm }) {
-  const [games, setGames] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchGames = async () => {
-      try {
-        const res = await gameAPI.getGames();
-        setGames(res.data);
-      } catch (err) {
-        console.error("Erreur games", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchGames();
-  }, []);
-
-  // Filter games by search term
-  const filteredGames = games.filter(g => 
-    g.client_info?.nom?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
+// --- VUE HISTORIQUE ---
+function HistoryView({ searchTerm, setSearchTerm, filteredGames, dataStats }) {
   return (
     <div className="animate-in slide-in-from-bottom-4 duration-500">
       <header className="mb-10 flex justify-between items-end">
@@ -140,13 +171,12 @@ function HistoryView({ searchTerm, setSearchTerm }) {
               onChange={(e) => setSearchTerm(e.target.value)}
              />
            </div>
-           <button className="bg-slate-800 border border-slate-700 p-3 rounded-2xl hover:bg-slate-700"><Filter size={20}/></button>
         </div>
       </header>
 
-      {/* GRAPHIQUE DES REVENUS */}
+      {/* GRAPHIQUE */}
       <div className="bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-800 mb-10 shadow-xl">
-        <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><BarChart3 className="text-indigo-400"/> Courbe d'activité (Argent / Heure)</h3>
+        <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><BarChart3 className="text-indigo-400"/> Courbe d'activité</h3>
         <div className="h-64 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={dataStats}>
@@ -166,7 +196,7 @@ function HistoryView({ searchTerm, setSearchTerm }) {
         </div>
       </div>
 
-      {/* TABLEAU HISTORIQUE */}
+      {/* TABLEAU */}
       <div className="bg-[#0f172a] rounded-[2.5rem] border border-slate-800 overflow-hidden shadow-xl">
         <table className="w-full text-left">
           <thead>
@@ -180,9 +210,7 @@ function HistoryView({ searchTerm, setSearchTerm }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800">
-            {loading ? (
-              <tr><td colSpan="6" className="px-8 py-10 text-center text-slate-500">Chargement...</td></tr>
-            ) : filteredGames.length > 0 ? filteredGames.map(g => (
+            {filteredGames.map(g => (
               <HistoryRow 
                 key={g.id}
                 date={new Date(g.date_debut).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
@@ -192,9 +220,7 @@ function HistoryView({ searchTerm, setSearchTerm }) {
                 price={g.prix || 0}
                 status={g.est_paye ? "PAYÉ" : "À PAYER"}
               />
-            )) : (
-              <tr><td colSpan="6" className="px-8 py-10 text-center text-slate-500">Aucune partie trouvée</td></tr>
-            )}
+            ))}
           </tbody>
         </table>
       </div>
@@ -202,7 +228,7 @@ function HistoryView({ searchTerm, setSearchTerm }) {
   );
 }
 
-// --- PETITS COMPOSANTS ---
+// --- COMPOSANTS ---
 
 function MenuBtn({ icon, label, active, onClick }) {
   return (
@@ -233,84 +259,88 @@ function StatBox({ title, value, icon, color }) {
   );
 }
 
-function TableCard({ name, num, color }) {
-  const [clientName, setClientName] = useState('');
-  const [nextPlayer, setNextPlayer] = useState('');
+function TableCard({ table, onGameStarted }) {
   const [loading, setLoading] = useState(false);
 
-  const startGame = async () => {
-    if (!clientName) {
-      alert('Veuillez entrer un nom de client');
-      return;
-    }
-    
+  const handleStart = async () => {
     setLoading(true);
     try {
-      // Create client if doesn't exist
-      const clientRes = await gameAPI.createClient({
-        nom: clientName,
-        telephone: '',
-      });
-      
-      // Start game
-      await gameAPI.createGame({
-        table: parseInt(num),
-        client: clientRes.data.id,
-        next_player: nextPlayer,
-      });
-      
-      setClientName('');
-      setNextPlayer('');
-      alert('Partie démarrée avec succès!');
-    } catch (error) {
-      console.error('Error starting game:', error);
-      alert('Erreur lors du démarrage de la partie');
+      await gameAPI.createGame({ table: table.id });
+      onGameStarted();
+    } catch (err) {
+      console.error("Erreur start", err);
+      alert(err.response?.data?.error || "Erreur lors du démarrage");
     } finally {
       setLoading(false);
     }
   };
 
+  const handleStop = async () => {
+    const loserName = prompt("La partie est finie ! Quel est le nom du perdant ?");
+    if (loserName) {
+      setLoading(true);
+      try {
+        // Stop the first active game for this table
+        const gamesRes = await gameAPI.getGames();
+        const activeGame = gamesRes.data.find(g => g.table === table.id && g.est_en_cours);
+        
+        if (activeGame) {
+          await gameAPI.stopGame(activeGame.id, { loser_name: loserName });
+          onGameStarted();
+        }
+      } catch (err) {
+        console.error("Erreur stop", err);
+        alert(err.response?.data?.error || "Erreur lors de l'arrêt");
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const isActive = table.est_disponible === false;
+
   return (
-    <div className="bg-[#0f172a] p-10 rounded-[3rem] border border-slate-800 relative group overflow-hidden shadow-2xl">
-      <div className={`absolute top-0 right-0 w-32 h-32 bg-${color}-500/10 blur-[80px] rounded-full`}></div>
+    <div className={`bg-[#0f172a] p-10 rounded-[3rem] border border-slate-800 relative group overflow-hidden shadow-2xl transition-all ${isActive ? 'border-indigo-500/50' : ''}`}>
+      <div className={`absolute top-0 right-0 w-32 h-32 bg-${isActive ? 'indigo' : 'slate'}-500/10 blur-[80px] rounded-full`}></div>
+      
       <div className="flex justify-between items-start mb-8 relative z-10">
         <div>
-          <span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-2 block">Session Libre</span>
-          <h3 className="text-4xl font-black text-white italic">{name}</h3>
+          <span className={`text-[10px] font-black uppercase tracking-[0.3em] mb-2 block ${isActive ? 'text-rose-400' : 'text-indigo-400'}`}>
+            {isActive ? 'EN COURS' : 'LIBRE'}
+          </span>
+          <h3 className="text-4xl font-black text-white italic">{table.nom || `BILLARD ${table.numero}`}</h3>
         </div>
-        <div className="text-6xl font-black text-slate-800/50 group-hover:text-indigo-500/20 transition-colors">{num}</div>
+        <div className={`text-6xl font-black ${isActive ? 'text-rose-500/20' : 'text-slate-800/50'} transition-colors`}>
+          {table.numero}
+        </div>
       </div>
       
-      <div className="grid grid-cols-2 gap-6 mb-10 relative z-10">
-        <div className="space-y-2">
-          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Client</label>
-          <input 
-            type="text" 
-            placeholder="Nom..." 
-            value={clientName}
-            onChange={(e) => setClientName(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl outline-none focus:border-indigo-500 transition" 
-          />
+      {isActive && (
+        <div className="mb-6 p-4 bg-rose-500/10 rounded-2xl border border-rose-500/20 relative z-10">
+          <p className="text-rose-400 text-sm font-bold">Session en cours...</p>
+          <p className="text-slate-400 text-xs mt-1">Cliquez sur STOP quand la partie finit</p>
         </div>
-        <div className="space-y-2">
-          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Suivant</label>
-          <input 
-            type="text" 
-            placeholder="Nom..." 
-            value={nextPlayer}
-            onChange={(e) => setNextPlayer(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl outline-none focus:border-indigo-500 transition" 
-          />
-        </div>
-      </div>
+      )}
 
-      <button 
-        onClick={startGame}
-        disabled={loading}
-        className="w-full bg-white text-slate-950 hover:bg-indigo-500 hover:text-white py-5 rounded-2xl font-black text-sm uppercase tracking-[0.2em] transition-all shadow-xl active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
-      >
-        <Play size={18} fill="currentColor"/> {loading ? 'DÉMARRAGE...' : 'Démarrer la session'}
-      </button>
+      <div className="relative z-10 flex gap-4">
+        {!isActive ? (
+          <button 
+            onClick={handleStart}
+            disabled={loading}
+            className="flex-1 bg-white text-slate-950 hover:bg-indigo-500 hover:text-white py-5 rounded-2xl font-black text-sm uppercase tracking-[0.2em] transition-all shadow-xl active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
+          >
+            <Play size={18} fill="currentColor"/> {loading ? '...' : 'START'}
+          </button>
+        ) : (
+          <button 
+            onClick={handleStop}
+            disabled={loading}
+            className="flex-1 bg-rose-500 text-white hover:bg-rose-600 py-5 rounded-2xl font-black text-sm uppercase tracking-[0.2em] transition-all shadow-xl active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
+          >
+            <Square size={18} fill="currentColor"/> {loading ? '...' : 'STOP'}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

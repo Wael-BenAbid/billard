@@ -115,6 +115,12 @@ class PartieViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # Get loser_name from request, create client if needed
+        loser_name = request.data.get('loser_name', '')
+        if loser_name:
+            client, created = Client.objects.get_or_create(nom=loser_name)
+            partie.client = client
+        
         partie.stop_partie()
         return Response(PartieSerializer(partie).data)
 
