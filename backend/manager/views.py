@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -13,6 +13,7 @@ class TableViewSet(viewsets.ModelViewSet):
     """ViewSet for managing billiard tables."""
     queryset = Table.objects.all()
     serializer_class = TableSerializer
+    permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
         queryset = Table.objects.all()
@@ -34,6 +35,7 @@ class ClientViewSet(viewsets.ModelViewSet):
     """ViewSet for managing clients."""
     queryset = Client.objects.all()
     serializer_class = ClientSerializer
+    permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
         queryset = Client.objects.all()
@@ -47,6 +49,7 @@ class PartieViewSet(viewsets.ModelViewSet):
     """ViewSet for managing game sessions."""
     queryset = Partie.objects.all().order_by('-date_debut')
     serializer_class = PartieSerializer
+    permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
         queryset = super().get_queryset()
