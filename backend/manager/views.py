@@ -1,12 +1,32 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.views import APIView
-from django.db.models import Sum, Count, Avg
+from django.db.models import Sum
 from django.db.models.functions import ExtractHour
 from django.utils import timezone
-from .models import Table, Client, Partie
-from .serializers import TableSerializer, ClientSerializer, PartieSerializer
+from .models import Table, Client, Partie, Parametres
+from .serializers import TableSerializer, ClientSerializer, PartieSerializer, ParametresSerializer
+
+
+class ParametresViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing application parameters."""
+    queryset = Parametres.objects.all()
+    serializer_class = ParametresSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def list(self, request):
+        """Get or create the default configuration."""
+        config, created = Parametres.objects.get_or_create(id=1)
+        serializer = self.get_serializer(config)
+        return Response(serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        """Update configuration (upsert)."""
+        config, created = Parametres.objects.get_or_create(id=1)
+        serializer = self.get_serializer(config, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
 
 
 class TableViewSet(viewsets.ModelViewSet):
@@ -21,14 +41,6 @@ class TableViewSet(viewsets.ModelViewSet):
         if disponible is not None:
             queryset = queryset.filter(est_disponible=disponible.lower() == 'true')
         return queryset
-
-    @action(detail=True, methods=['post'])
-    def toggle_disponibilite(self, request, pk=None):
-        """Toggle table availability."""
-        table = self.get_object()
-        table.est_disponible = not table.est_disponible
-        table.save()
-        return Response(TableSerializer(table).data)
 
 
 class ClientViewSet(viewsets.ModelViewSet):
@@ -69,7 +81,6 @@ class PartieViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """Create a new game session and start it."""
         table_id = request.data.get('table')
-        client_id = request.data.get('client')
         
         # Check if table is available
         try:
@@ -85,20 +96,13 @@ class PartieViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # If no client provided, use None
-        client = None
-        if client_id:
-            try:
-                client = Client.objects.get(id=client_id)
-            except Client.DoesNotExist:
-                pass
-        
         # Create the partie
         partie = Partie.objects.create(
             table=table,
-            client=client,
+            client=None,
             date_debut=timezone.now(),
-            est_en_cours=True
+            est_en_cours=True,
+            prix=0
         )
         
         # Mark table as unavailable
@@ -106,23 +110,6 @@ class PartieViewSet(viewsets.ModelViewSet):
         table.save()
         
         return Response(PartieSerializer(partie).data, status=status.HTTP_201_CREATED)
-    
-    def perform_create(self, serializer):
-        # Deprecated - using create() instead
-        pass
-
-    @action(detail=True, methods=['post'])
-    def start(self, request, pk=None):
-        """Start a game session."""
-        partie = self.get_object()
-        if partie.est_en_cours:
-            return Response(
-                {'error': 'La partie est déjà en cours'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        partie.start_partie()
-        return Response(PartieSerializer(partie).data)
 
     @action(detail=True, methods=['post'])
     def stop(self, request, pk=None):
@@ -136,11 +123,7 @@ class PartieViewSet(viewsets.ModelViewSet):
         
         # Get loser_name from request, create client if needed
         loser_name = request.data.get('loser_name', '')
-        if loser_name:
-            client, created = Client.objects.get_or_create(nom=loser_name)
-            partie.client = client
-        
-        partie.stop_partie()
+        partie.stop_partie(loser_name)
         return Response(PartieSerializer(partie).data)
 
     @action(detail=True, methods=['post'])
@@ -150,20 +133,6 @@ class PartieViewSet(viewsets.ModelViewSet):
         partie.est_paye = True
         partie.save()
         return Response(PartieSerializer(partie).data)
-
-    @action(detail=True, methods=['post'])
-    def set_next_player(self, request, pk=None):
-        """Set the next player for a game session."""
-        partie = self.get_object()
-        next_player = request.data.get('next_player', '')
-        partie.next_player = next_player
-        partie.save()
-        return Response(PartieSerializer(partie).data)
-
-    @action(detail=True, methods=['post'])
-    def mark_as_paid(self, request, pk=None):
-        """Mark a game session as paid (alias for pay)."""
-        return self.pay(request, pk)
 
     @action(detail=False, methods=['get'])
     def search_client(self, request):
@@ -176,17 +145,17 @@ class PartieViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def get_stats(self, request):
         """Get dashboard statistics."""
-        total_argent = Partie.objects.aggregate(Sum('prix_total'))['prix_total__sum'] or 0
+        total_argent = Partie.objects.aggregate(Sum('prix'))['prix__sum'] or 0
         total_parties = Partie.objects.count()
         
         # Calculate peak hour (most profitable)
         pic = Partie.objects.annotate(heure=ExtractHour('date_debut'))\
-            .values('heure').annotate(total=Sum('prix_total')).order_by('-total').first()
+            .values('heure').annotate(total=Sum('prix')).order_by('-total').first()
         
         # Today's stats
         today = timezone.now().date()
         today_parties = Partie.objects.filter(date_debut__date=today)
-        today_revenue = sum(partie.prix_total for partie in today_parties)
+        today_revenue = sum(partie.prix for partie in today_parties)
         
         # Active parties
         active_parties = Partie.objects.filter(est_en_cours=True)
@@ -204,50 +173,4 @@ class PartieViewSet(viewsets.ModelViewSet):
             "today_games": today_parties.count(),
             "active_parties_count": active_parties.count(),
             "available_tables": f"{available_tables}/{total_tables}",
-        })
-
-
-class DashboardStatsView(APIView):
-    """API endpoint for dashboard statistics."""
-    def get(self, request):
-        """Get dashboard statistics."""
-        from django.db.models import Sum
-        from django.db.models.functions import ExtractHour
-        
-        today = timezone.now().date()
-        
-        # Today's parties
-        today_parties = Partie.objects.filter(date_debut__date=today)
-        total_revenue_today = sum(partie.prix_total for partie in today_parties)
-        
-        # Total stats
-        total_argent = Partie.objects.aggregate(Sum('prix_total'))['prix_total__sum'] or 0
-        total_parties = Partie.objects.count()
-        
-        # Peak hour
-        pic = Partie.objects.annotate(heure=ExtractHour('date_debut'))\
-            .values('heure').annotate(total=Sum('prix_total')).order_by('-total').first()
-        
-        # Active parties
-        active_parties = Partie.objects.filter(est_en_cours=True)
-        
-        # Available tables
-        available_tables = Table.objects.filter(est_disponible=True).count()
-        total_tables = Table.objects.count()
-        
-        # Total clients
-        total_clients = Client.objects.count()
-        
-        return Response({
-            'today_revenue': float(total_revenue_today),
-            'today_parties_count': today_parties.count(),
-            'total_revenue': float(total_argent),
-            'total_games': total_parties,
-            'peak_hour': pic['heure'] if pic else 0,
-            'active_parties_count': active_parties.count(),
-            'unpaid_count': Partie.objects.filter(est_paye=False).count(),
-            'available_tables': f"{available_tables}/{total_tables}",
-            'total_clients': total_clients,
-            'tables_status': TableSerializer(Table.objects.all(), many=True).data,
-            'active_parties': PartieSerializer(active_parties, many=True).data,
         })

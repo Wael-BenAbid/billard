@@ -45,7 +45,6 @@ api.interceptors.response.use(
           return api(originalRequest);
         }
       } catch (refreshError) {
-        // Refresh failed, redirect to login
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         window.location.href = '/login';
@@ -65,6 +64,12 @@ export const authAPI = {
   profile: () => api.get('/accounts/profile/'),
 };
 
+// Config API methods
+export const configAPI = {
+  get: () => api.get('/manager/config/'),
+  update: (data) => api.post('/manager/config/', data),
+};
+
 // Game/Manager API methods
 export const gameAPI = {
   getTables: () => api.get('/manager/tables/'),
@@ -74,12 +79,13 @@ export const gameAPI = {
   searchClients: (q) => api.get(`/manager/parties/search_client/?q=${q}`),
   createClient: (data) => api.post('/manager/clients/', data),
   createGame: (tableId, nextPlayer = '') => api.post('/manager/parties/', { 
-    table: tableId,
-    next_player: nextPlayer, 
-    est_paye: false 
+    table: parseInt(tableId),
+    next_player: nextPlayer,
+    prix: 0
   }),
   stopGame: (id, loserName) => api.post(`/manager/parties/${id}/stop/`, { loser_name: loserName }),
   markPaid: (id) => api.post(`/manager/parties/${id}/pay/`),
+  togglePayment: (id, currentStatus) => api.patch(`/manager/parties/${id}/`, { est_paye: !currentStatus }),
   
   // Table management
   createTable: (data) => api.post('/manager/tables/', data),
